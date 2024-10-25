@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinSerialization)
+    id("org.eclipse.keyple")
+    id("com.diffplug.spotless")
+
     id("maven-publish")
 }
 
@@ -65,12 +68,25 @@ android {
 }
 
 group = "org.eclipse.keyple"
-version = "0.1"
+version = "0.1.1"
 
 publishing {
     repositories {
         mavenLocal {
             //...
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//  TASKS CONFIGURATION
+///////////////////////////////////////////////////////////////////////////////
+tasks {
+    spotless {
+        kotlin {
+            target("**/*.kt")
+            ktfmt()
+            licenseHeaderFile("${project.rootDir}/LICENSE_HEADER")
         }
     }
 }

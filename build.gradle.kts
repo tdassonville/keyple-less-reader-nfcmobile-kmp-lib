@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     id("org.eclipse.keyple")
     id("com.diffplug.spotless")
-
     id("maven-publish")
 }
 

@@ -41,8 +41,6 @@ kotlin {
             implementation(libs.okio)
 
             api(libs.napier)
-
-            api(libs.koin.core)
         }
 
         androidMain.dependencies {
@@ -67,7 +65,7 @@ android {
 }
 
 group = "org.eclipse.keyple"
-version = "0.1.1"
+version = "0.1.2"
 
 publishing {
     repositories {

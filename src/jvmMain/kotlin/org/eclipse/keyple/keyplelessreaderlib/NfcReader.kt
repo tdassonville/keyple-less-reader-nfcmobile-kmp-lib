@@ -14,39 +14,61 @@ package org.eclipse.keyple.keyplelessreaderlib
 import io.github.aakira.napier.Napier
 import javax.smartcardio.Card
 import javax.smartcardio.CardChannel
+import javax.smartcardio.CardTerminal
 import javax.smartcardio.CommandAPDU
 import javax.smartcardio.TerminalFactory
-import kotlinx.coroutines.delay
 
-actual class LocalNfcReader {
+private const val TAG = "NFCReader"
+
+actual class LocalNfcReader(val readerNameFilter: String = "*") {
   actual var scanMessage: String = ""
 
   private var card: Card? = null
   private var channel: CardChannel? = null
+  private var reader: CardTerminal? = null
+
+  private fun selectReader() {
+    if (reader == null) {
+      val terminalFactory = TerminalFactory.getDefault()
+      val terminals = terminalFactory.terminals().list()
+      Napier.d("Readers detected: $terminals")
+      if (terminals.isEmpty()) {
+        return
+      }
+
+      reader =
+          terminals[0] // Use the first CardTerminal if not specified otherwise with a readerName
+      if (readerNameFilter.isNotEmpty()) {
+        for (terminal: CardTerminal in terminals) {
+          if (terminal.name.contains(readerNameFilter, ignoreCase = true)) {
+            reader = terminal
+            Napier.d(tag = TAG, message = "Using CardTerminal: ${terminal.name}")
+            break
+          }
+        }
+      }
+    }
+  }
 
   actual suspend fun waitForCardPresent(): Boolean {
-    val terminalFactory = TerminalFactory.getDefault()
-    val terminals = terminalFactory.terminals().list()
-    Napier.d("Terminals: $terminals")
-    if (terminals.isEmpty()) {
-      return false
+    selectReader()
+    reader?.let {
+      it.waitForCardPresent(0)
+      card = it.connect("T=1")
+      Napier.d(tag = TAG, message = "Card present: $card")
+      return true
     }
-
-    val terminal = terminals[0]
-
-    while (!terminal.isCardPresent) {
-      // wait for card to be present
-    }
-
-    card = terminal.connect("T=0")
-    Napier.d("Card: $card")
-
-    return true
+    return false
   }
 
   actual suspend fun startCardDetection(onCardFound: () -> Unit) {
-    delay(5000)
-    onCardFound()
+    selectReader()
+    reader?.let {
+      it.waitForCardPresent(0)
+      card = it.connect("T=1")
+      Napier.d(tag = TAG, message = "Card present: $card")
+      onCardFound()
+    }
   }
 
   /**
@@ -65,7 +87,11 @@ actual class LocalNfcReader {
    * <exception cref="ReaderNotFoundException">If the communication with the reader has
    * failed.</exception>
    */
-  actual fun closePhysicalChannel() {}
+  actual fun closePhysicalChannel() {
+    card?.disconnect(false)
+    card = null
+    Napier.d(tag = TAG, message = "Card closed")
+  }
 
   /**
    * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
@@ -98,13 +124,16 @@ actual class LocalNfcReader {
    */
   @OptIn(ExperimentalStdlibApi::class)
   actual fun transmitApdu(commandApdu: ByteArray): ByteArray {
-    Napier.d("APDU: ${commandApdu.toHexString()}")
+    Napier.d(tag = TAG, message = "-- APDU:")
+    Napier.d(tag = TAG, message = "----> ${commandApdu.toHexString()}")
     val response = channel!!.transmit(CommandAPDU(commandApdu))
-    Napier.d("APDU response: ${response.bytes.toHexString()}")
+    Napier.d(tag = TAG, message = "<---- ${response.bytes.toHexString()}")
     return response.bytes
   }
 
   actual fun releaseReader() {
-    card?.disconnect(false)
+    closePhysicalChannel()
+    reader = null
+    Napier.d(tag = TAG, message = "Reader closed")
   }
 }

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.dokka)
     id("org.eclipse.keyple")
     id("com.diffplug.spotless")
     id("maven-publish")
@@ -10,14 +11,16 @@ plugins {
 kotlin {
     jvmToolchain(17)
 
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "keyplelessreader"
-            isStatic = false
+    if (System.getProperty("os.name").lowercase().contains("mac")) {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64(),
+        ).forEach { iosTarget ->
+            iosTarget.binaries.framework {
+                baseName = "keyplelessreader"
+                isStatic = false
+            }
         }
     }
 
@@ -38,7 +41,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.serialization)
 
-            implementation(libs.okio)
+            //implementation(libs.okio)
 
             api(libs.napier)
         }
@@ -56,11 +59,10 @@ kotlin {
 
 android {
     namespace = "org.eclipse.keyple.keypleless.reader.nfcmobile"
-    compileSdk = 34
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        minSdk = 23
-        targetSdk = 34
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }
 
@@ -79,6 +81,19 @@ publishing {
 //  TASKS CONFIGURATION
 ///////////////////////////////////////////////////////////////////////////////
 tasks {
+    dokkaHtml {
+        outputDirectory.set(buildDir.resolve("dokka"))
+
+        dokkaSourceSets {
+            configureEach {
+                includeNonPublic.set(false)
+                skipDeprecated.set(true)
+                reportUndocumented.set(true)
+                jdkVersion.set(17)
+            }
+        }
+    }
+
     spotless {
         kotlin {
             target("**/*.kt")

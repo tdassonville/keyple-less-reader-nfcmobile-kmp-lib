@@ -11,6 +11,7 @@
  ************************************************************************************** */
 package org.eclipse.keyple.keypleless.reader.nfcmobile
 
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.sync.Mutex
 import org.eclipse.keyple.keypleless.distributed.client.spi.LocalReader
 import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
@@ -34,14 +35,13 @@ class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
     }
   }
 
-  override suspend fun startCardDetection(onCardFound: () -> Unit) {
-    if (mutex.isLocked) {
-      throw ReaderIOException("Reader is already in use")
-    }
-
+  override fun startCardDetection(onCardFound: () -> Unit) {
     try {
-      mutex.lock()
+      if (!mutex.tryLock()) {
+        throw ReaderIOException("Reader is already in use")
+      }
       nfcReader.startCardDetection {
+        Napier.d(tag = "NFCReader", message = "Card found")
         mutex.unlock()
         onCardFound()
       }
@@ -97,6 +97,7 @@ class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
   }
 }
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 expect class LocalNfcReader {
   var scanMessage: String
   var name: String
@@ -109,7 +110,7 @@ expect class LocalNfcReader {
    */
   suspend fun waitForCardPresent(): Boolean
 
-  suspend fun startCardDetection(onCardFound: () -> Unit)
+  fun startCardDetection(onCardFound: () -> Unit)
 
   fun releaseReader()
 

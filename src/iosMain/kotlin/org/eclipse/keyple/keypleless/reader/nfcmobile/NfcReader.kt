@@ -9,11 +9,12 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  ************************************************************************************** */
-@file:OptIn(ExperimentalStdlibApi::class)
+@file:OptIn(ExperimentalStdlibApi::class, BetaInteropApi::class)
 
 package org.eclipse.keyple.keypleless.reader.nfcmobile
 
 import io.github.aakira.napier.Napier
+import kotlinx.cinterop.BetaInteropApi
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -28,6 +29,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
+import org.eclipse.keyple.keypleless.distributed.client.spi.CardIOException
 import platform.CoreNFC.NFCISO7816APDU
 import platform.CoreNFC.NFCISO7816TagProtocol
 import platform.CoreNFC.NFCPollingISO14443
@@ -56,6 +59,10 @@ internal object ReaderInstance {
     ReaderInstance.session = session
   }
 
+  fun sendTagToChannel() {
+    channel?.trySend(nfcTag)
+  }
+
   fun selectCard(session: NFCTagReaderSession, card: NFCISO7816TagProtocol?) {
     ReaderInstance.session = session
     if (card != null) {
@@ -63,7 +70,6 @@ internal object ReaderInstance {
     } else {
       nfcTag = null
     }
-    channel?.trySend(nfcTag)
   }
 
   fun getCard(): NfcTag? {
@@ -91,21 +97,42 @@ internal object ReaderInstance {
   }
 }
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   actual var scanMessage: String = "Place your card on the top of your iPhone"
   actual var name = "iOS-NFC"
 
+  private lateinit var readerCallback : NativeNfcReaderCallback
+
+
   init {
     ReaderInstance.getErrorMsg = getErrorMsg
   }
-
-  private val readerCallback = NativeNfcReaderCallback()
 
   private fun isReadingAvailable(): Boolean {
     return NFCTagReaderSession.readingAvailable()
   }
 
   actual suspend fun waitForCardPresent(): Boolean {
+    startiOSCardDetection {
+      ReaderInstance.sendTagToChannel()
+    }
+    // Blocking until a tag is pushed in the channel...
+    Napier.d(tag = TAG, message = "Wait until tag detected...")
+    val nfcTag = ReaderInstance.channel?.receive()
+    Napier.d(tag = TAG, message = "Tag detected!")
+    return nfcTag != null
+  }
+
+  actual fun startCardDetection(onCardFound: () -> Unit) {
+    startiOSCardDetection {
+      ReaderInstance.getCard()?.let {
+        onCardFound()
+      }
+    }
+  }
+
+  private fun startiOSCardDetection(onConnected: () -> Unit) {
     Napier.d(tag = TAG, message = "Start scanning")
     if (!isReadingAvailable()) {
       throw ReaderIOException("NFC is not available")
@@ -117,8 +144,13 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
     if (session == null) {
       // all the NcfTagReader callbacks will end up on NFC_WORKER_QUEUE
       MainScope().launch(Dispatchers.Main) {
+        readerCallback = NativeNfcReaderCallback(onConnected)
         val newSession =
-            NFCTagReaderSession(NFCPollingISO14443, readerCallback, ReaderInstance.queue)
+          NFCTagReaderSession(
+            NFCPollingISO14443,
+            readerCallback,
+            ReaderInstance.queue
+          )
         newSession.setAlertMessage(scanMessage)
         newSession.beginSession()
         Napier.d(tag = TAG, message = "New session started")
@@ -126,16 +158,6 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
     } else {
       Napier.d(tag = TAG, message = "Session already active")
     }
-
-    // Blocking until a tag is pushed in the channel...
-    Napier.d(tag = TAG, message = "Wait until tag detected...")
-    val nfcTag = ReaderInstance.channel?.receive()
-    Napier.d(tag = TAG, message = "Tag detected!")
-    return nfcTag != null
-  }
-
-  actual suspend fun startCardDetection(onCardFound: () -> Unit) {
-    TODO("To be implemented")
   }
 
   actual fun releaseReader() {
@@ -275,7 +297,7 @@ internal class NfcTag(private val tag: NFCISO7816TagProtocol) {
   }
 }
 
-internal class NativeNfcReaderCallback : NSObject(), NFCTagReaderSessionDelegateProtocol {
+internal class NativeNfcReaderCallback(private val onConnected: () -> Unit) : NSObject(), NFCTagReaderSessionDelegateProtocol {
 
   override fun tagReaderSessionDidBecomeActive(session: NFCTagReaderSession) {
     Napier.d(tag = TAG, message = "TagReaderSession did become active")
@@ -307,6 +329,7 @@ internal class NativeNfcReaderCallback : NSObject(), NFCTagReaderSessionDelegate
       } else {
         Napier.d(tag = TAG, message = "Tag session connected")
         ReaderInstance.selectCard(session, isoTag)
+        onConnected()
       }
     }
     session.connectToTag(tag, onConnected)

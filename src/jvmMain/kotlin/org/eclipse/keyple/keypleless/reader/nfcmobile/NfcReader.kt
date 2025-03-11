@@ -63,7 +63,7 @@ actual class LocalNfcReader(val readerNameFilter: String = "*") {
     return false
   }
 
-  actual suspend fun startCardDetection(onCardFound: () -> Unit) {
+  actual fun startCardDetection(onCardFound: () -> Unit) {
     selectReader()
     reader?.let {
       it.waitForCardPresent(0)

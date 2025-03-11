@@ -29,6 +29,7 @@ import org.eclipse.keyple.keypleless.distributed.client.spi.CardIOException
 
 private const val TAG = "NFCReader"
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class LocalNfcReader(private val activity: Activity) {
   private var tag: Tag? = null
   private var isoDep: IsoDep? = null
@@ -36,7 +37,7 @@ actual class LocalNfcReader(private val activity: Activity) {
   actual var scanMessage: String = ""
   actual var name = "AndroidNFC"
 
-  actual suspend fun startCardDetection(onCardFound: () -> Unit) {
+  actual fun startCardDetection(onCardFound: () -> Unit) {
     Napier.d(tag = TAG, message = "startCardDetection")
     enableForeground { onCardFound() }
   }
@@ -69,11 +70,6 @@ actual class LocalNfcReader(private val activity: Activity) {
     NfcAdapter.getDefaultAdapter(activity.applicationContext)
         .enableForegroundDispatch(activity, pendingIntent, null, null)
   }
-
-  //    private fun cardPresent(newTag: Tag) {
-  //        Napier.d(tag = TAG, message = "Card detected, notify...")
-  //        channel.trySend(newTag)
-  //    }
 
   actual fun releaseReader() {
     Napier.d(tag = TAG, message = "stopCardDetection")

@@ -15,6 +15,13 @@ Full documentation available at [keyple.org](https://keyple.org)
 
 ## Build
 The code is built with **Gradle** and targets **Android**, **iOS**, and **JVM** platforms.
+This library depends on [keypleless-distributed-client-kmp-lib](https://github.com/eclipse-keyple/keypleless-distributed-client-kmp-lib).
+Ensure it's available through public maven repos, or by publishing it yourself locally prior to this library. 
+To build and publish the artifacts for all supported targets locally, use:
+```
+./gradlew publishAllPublicationsToMavenLocalRepository
+```
+Note: you need to use a mac to build or use iOS artifacts. Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
 
 ## API Documentation
 API documentation & class diagrams are available

@@ -14,10 +14,10 @@
 package org.eclipse.keyple.keypleless.reader.nfcmobile
 
 import io.github.aakira.napier.Napier
-import kotlinx.cinterop.BetaInteropApi
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.allocArrayOf
@@ -29,8 +29,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
 import org.eclipse.keyple.keypleless.distributed.client.spi.CardIOException
+import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
 import platform.CoreNFC.NFCISO7816APDU
 import platform.CoreNFC.NFCISO7816TagProtocol
 import platform.CoreNFC.NFCPollingISO14443
@@ -102,8 +102,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   actual var scanMessage: String = "Place your card on the top of your iPhone"
   actual var name = "iOS-NFC"
 
-  private lateinit var readerCallback : NativeNfcReaderCallback
-
+  private lateinit var readerCallback: NativeNfcReaderCallback
 
   init {
     ReaderInstance.getErrorMsg = getErrorMsg
@@ -114,9 +113,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   }
 
   actual suspend fun waitForCardPresent(): Boolean {
-    startiOSCardDetection {
-      ReaderInstance.sendTagToChannel()
-    }
+    startiOSCardDetection { ReaderInstance.sendTagToChannel() }
     // Blocking until a tag is pushed in the channel...
     Napier.d(tag = TAG, message = "Wait until tag detected...")
     val nfcTag = ReaderInstance.channel?.receive()
@@ -125,11 +122,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   }
 
   actual fun startCardDetection(onCardFound: () -> Unit) {
-    startiOSCardDetection {
-      ReaderInstance.getCard()?.let {
-        onCardFound()
-      }
-    }
+    startiOSCardDetection { ReaderInstance.getCard()?.let { onCardFound() } }
   }
 
   private fun startiOSCardDetection(onConnected: () -> Unit) {
@@ -146,11 +139,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
       MainScope().launch(Dispatchers.Main) {
         readerCallback = NativeNfcReaderCallback(onConnected)
         val newSession =
-          NFCTagReaderSession(
-            NFCPollingISO14443,
-            readerCallback,
-            ReaderInstance.queue
-          )
+            NFCTagReaderSession(NFCPollingISO14443, readerCallback, ReaderInstance.queue)
         newSession.setAlertMessage(scanMessage)
         newSession.beginSession()
         Napier.d(tag = TAG, message = "New session started")
@@ -297,7 +286,8 @@ internal class NfcTag(private val tag: NFCISO7816TagProtocol) {
   }
 }
 
-internal class NativeNfcReaderCallback(private val onConnected: () -> Unit) : NSObject(), NFCTagReaderSessionDelegateProtocol {
+internal class NativeNfcReaderCallback(private val onConnected: () -> Unit) :
+    NSObject(), NFCTagReaderSessionDelegateProtocol {
 
   override fun tagReaderSessionDidBecomeActive(session: NFCTagReaderSession) {
     Napier.d(tag = TAG, message = "TagReaderSession did become active")

@@ -106,18 +106,22 @@ expect class LocalNfcReader {
    * Waits for a card to be inserted in the reader
    *
    * @returns True if a card is detected, otherwise false
-   * @throws TimeoutException or CancellationException
+   * @throws TimeoutException
+   * @throws CancellationException
    */
   suspend fun waitForCardPresent(): Boolean
 
+  /** Waits for a card to be inserted in the reader, then triggers the provided callback. */
   fun startCardDetection(onCardFound: () -> Unit)
 
+  /** Stop NFC polling and release resources. */
   fun releaseReader()
 
   /**
-   * Attempts to open the physical channel (to establish communication with the card). <exception
-   * cref="ReaderNotFoundException">If the communication with the reader has failed.</exception>
-   * <exception cref="CardIOException">If the communication with the card has failed.</exception>
+   * Attempts to open the physical channel (to establish communication with the card).
+   *
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
+   * @throws CardIOException If the communication with the card has failed
    */
   fun openPhysicalChannel()
 
@@ -125,8 +129,7 @@ expect class LocalNfcReader {
    * Attempts to close the current physical channel. The physical channel may have been implicitly
    * closed previously by a card withdrawal.
    *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception>
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
    */
   fun closePhysicalChannel()
 
@@ -152,10 +155,8 @@ expect class LocalNfcReader {
    *
    * @param commandApdu: The command APDU to be transmitted.
    * @return The response APDU received from the smart card.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception> <exception cref="CardIOException">If the communication with the card has
-   * failed.</exception>
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
+   * @throws CardIOException If the communication with the card has failed
    */
   fun transmitApdu(commandApdu: ByteArray): ByteArray
 }

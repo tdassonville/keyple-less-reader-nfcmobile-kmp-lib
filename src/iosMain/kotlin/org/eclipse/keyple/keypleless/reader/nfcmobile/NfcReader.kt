@@ -14,10 +14,10 @@
 package org.eclipse.keyple.keypleless.reader.nfcmobile
 
 import io.github.aakira.napier.Napier
-import kotlinx.cinterop.BetaInteropApi
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.allocArrayOf
@@ -29,8 +29,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
 import org.eclipse.keyple.keypleless.distributed.client.spi.CardIOException
+import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
 import platform.CoreNFC.NFCISO7816APDU
 import platform.CoreNFC.NFCISO7816TagProtocol
 import platform.CoreNFC.NFCPollingISO14443
@@ -102,8 +102,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   actual var scanMessage: String = "Place your card on the top of your iPhone"
   actual var name = "iOS-NFC"
 
-  private lateinit var readerCallback : NativeNfcReaderCallback
-
+  private lateinit var readerCallback: NativeNfcReaderCallback
 
   init {
     ReaderInstance.getErrorMsg = getErrorMsg
@@ -114,9 +113,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   }
 
   actual suspend fun waitForCardPresent(): Boolean {
-    startiOSCardDetection {
-      ReaderInstance.sendTagToChannel()
-    }
+    startiOSCardDetection { ReaderInstance.sendTagToChannel() }
     // Blocking until a tag is pushed in the channel...
     Napier.d(tag = TAG, message = "Wait until tag detected...")
     val nfcTag = ReaderInstance.channel?.receive()
@@ -125,11 +122,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   }
 
   actual fun startCardDetection(onCardFound: () -> Unit) {
-    startiOSCardDetection {
-      ReaderInstance.getCard()?.let {
-        onCardFound()
-      }
-    }
+    startiOSCardDetection { ReaderInstance.getCard()?.let { onCardFound() } }
   }
 
   private fun startiOSCardDetection(onConnected: () -> Unit) {
@@ -146,11 +139,7 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
       MainScope().launch(Dispatchers.Main) {
         readerCallback = NativeNfcReaderCallback(onConnected)
         val newSession =
-          NFCTagReaderSession(
-            NFCPollingISO14443,
-            readerCallback,
-            ReaderInstance.queue
-          )
+            NFCTagReaderSession(NFCPollingISO14443, readerCallback, ReaderInstance.queue)
         newSession.setAlertMessage(scanMessage)
         newSession.beginSession()
         Napier.d(tag = TAG, message = "New session started")
@@ -165,22 +154,10 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
     ReaderInstance.channel?.cancel(CancellationException("Reader closed"))
   }
 
-  /**
-   * Attempts to open the physical channel (to establish communication with the card). <exception
-   * cref="ReaderNotFoundException">If the communication with the reader has failed.</exception>
-   * <exception cref="CardIOException">If the communication with the card has failed.</exception>
-   */
   actual fun openPhysicalChannel() {
     ReaderInstance.getSession()?.setAlertMessage(scanMessage)
   }
 
-  /**
-   * Attempts to close the current physical channel. The physical channel may have been implicitly
-   * closed previously by a card withdrawal.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception>
-   */
   actual fun closePhysicalChannel() {
     closeSession()
   }
@@ -201,36 +178,11 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
     ReaderInstance.clearSession()
   }
 
-  /**
-   * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
-   * the card is inserted.
-   *
-   * In the case of a contactless reader, the reader decides what this data is. Contactless readers
-   * provide a virtual ATR (partially standardized by the PC/SC standard), but other devices can
-   * have their own definition, including for example elements from the anti-collision stage of the
-   * ISO14443 protocol (ATQA, ATQB, ATS, SAK, etc).
-   *
-   * These data being variable from one reader to another, they are defined here in string format
-   * which can be either a hexadecimal string or any other relevant information.
-   *
-   * @return a non empty String
-   */
   actual fun getPowerOnData(): String {
     // TODO
     return ""
   }
 
-  /**
-   * Transmits an Application Protocol Data Unit (APDU) command to the smart card and receives the
-   * response.
-   *
-   * @param commandApdu: The command APDU to be transmitted.
-   * @return The response APDU received from the smart card.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception> <exception cref="CardIOException">If the communication with the card has
-   * failed.</exception>
-   */
   @OptIn(ExperimentalStdlibApi::class)
   actual fun transmitApdu(commandApdu: ByteArray): ByteArray {
     // TODO: manage IO errors!
@@ -297,7 +249,8 @@ internal class NfcTag(private val tag: NFCISO7816TagProtocol) {
   }
 }
 
-internal class NativeNfcReaderCallback(private val onConnected: () -> Unit) : NSObject(), NFCTagReaderSessionDelegateProtocol {
+internal class NativeNfcReaderCallback(private val onConnected: () -> Unit) :
+    NSObject(), NFCTagReaderSessionDelegateProtocol {
 
   override fun tagReaderSessionDidBecomeActive(session: NFCTagReaderSession) {
     Napier.d(tag = TAG, message = "TagReaderSession did become active")

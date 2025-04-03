@@ -13,16 +13,33 @@ package org.eclipse.keyple.keypleless.reader.nfcmobile
 
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.sync.Mutex
+import org.eclipse.keyple.keypleless.distributed.client.spi.CardIOException
 import org.eclipse.keyple.keypleless.distributed.client.spi.LocalReader
 import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
 
-class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
+/**
+ * An implementation of Keyple-less LocalReader that provides NFC reading capability for Android,
+ * iOS and PCSC readers on Windows/Mac/Linux. For exotic NFC reader hardware, or advanced fine
+ * tuning, you can provide your own implementation of the LocalReader interface to the
+ * keyple-less-distributed lib.
+ */
+class MultiplatformNfcReader(private val nfcReader: LocalNfcReader) : LocalReader {
   private val mutex = Mutex()
 
+  /**
+   * Used to set the scan instructions to the user, for applicable NFC readers. Main usage is for
+   * iOS: the provided msg is displayed in the iOS system-driven NFC popup
+   */
   override fun setScanMessage(msg: String) {
     nfcReader.scanMessage = msg
   }
 
+  /**
+   * Waits (suspends) for a card to be detected
+   *
+   * @returns True if a card is detected, otherwise false
+   * @throws CancellationException
+   */
   override suspend fun waitForCardPresent(): Boolean {
     if (mutex.isLocked) {
       throw ReaderIOException("Reader is already in use")
@@ -35,6 +52,13 @@ class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
     }
   }
 
+  /**
+   * Waits (asynchronously) for a card to be inserted in the reader, then triggers the provided
+   * callback.
+   *
+   * @param onCard The callback that will be called when a card is detected.
+   * @throws ReaderIOException on IO error communicating with the reader (USB unplugged, etc.)
+   */
   override fun startCardDetection(onCardFound: () -> Unit) {
     try {
       if (!mutex.tryLock()) {
@@ -51,6 +75,12 @@ class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
     }
   }
 
+  /**
+   * Attempts to open the physical channel (to establish communication with the card).
+   *
+   * @throws ReaderIOException on IO error communicating with the reader (USB unplugged, etc.)
+   * @throws CardIOException on IO error with the card (card exited the NFC field, etc.)
+   */
   override suspend fun openPhysicalChannel() {
     if (mutex.isLocked) {
       throw ReaderIOException("Reader is already in use")
@@ -64,18 +94,40 @@ class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
     }
   }
 
+  /**
+   * Attempts to close the current physical channel. The physical channel may have been implicitly
+   * closed previously by a card withdrawal.
+   *
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
+   */
   override fun closePhysicalChannel() {
     nfcReader.closePhysicalChannel()
   }
 
+  /**
+   * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
+   * the card is inserted. This is not used in our main target (ISO cards)
+   *
+   * @return an empty String
+   */
   override fun getPowerOnData(): String {
     return nfcReader.getPowerOnData()
   }
 
+  /** Returns the name of this reader (mostly indicative) */
   override fun name(): String {
     return nfcReader.name
   }
 
+  /**
+   * Transmits an Application Protocol Data Unit (APDU) command to the smart card and receives the
+   * response.
+   *
+   * @param commandApdu: The command APDU to be transmitted.
+   * @return The response APDU received from the smart card.
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
+   * @throws CardIOException If the communication with the card has failed
+   */
   override suspend fun transmitApdu(commandApdu: ByteArray): ByteArray {
     if (mutex.isLocked) {
       throw ReaderIOException("Reader is already in use")
@@ -89,6 +141,7 @@ class MultiplatformReader(private val nfcReader: LocalNfcReader) : LocalReader {
     }
   }
 
+  /** Stop scanning for NFC cards. Release the reader resources. */
   override fun release() {
     nfcReader.releaseReader()
     if (mutex.isLocked) {
@@ -106,18 +159,22 @@ expect class LocalNfcReader {
    * Waits for a card to be inserted in the reader
    *
    * @returns True if a card is detected, otherwise false
-   * @throws TimeoutException or CancellationException
+   * @throws TimeoutException
+   * @throws CancellationException
    */
   suspend fun waitForCardPresent(): Boolean
 
+  /** Waits for a card to be inserted in the reader, then triggers the provided callback. */
   fun startCardDetection(onCardFound: () -> Unit)
 
+  /** Stop NFC polling and release resources. */
   fun releaseReader()
 
   /**
-   * Attempts to open the physical channel (to establish communication with the card). <exception
-   * cref="ReaderNotFoundException">If the communication with the reader has failed.</exception>
-   * <exception cref="CardIOException">If the communication with the card has failed.</exception>
+   * Attempts to open the physical channel (to establish communication with the card).
+   *
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
+   * @throws CardIOException If the communication with the card has failed
    */
   fun openPhysicalChannel()
 
@@ -125,8 +182,7 @@ expect class LocalNfcReader {
    * Attempts to close the current physical channel. The physical channel may have been implicitly
    * closed previously by a card withdrawal.
    *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception>
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
    */
   fun closePhysicalChannel()
 
@@ -134,15 +190,7 @@ expect class LocalNfcReader {
    * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
    * the card is inserted.
    *
-   * In the case of a contactless reader, the reader decides what this data is. Contactless readers
-   * provide a virtual ATR (partially standardized by the PC/SC standard), but other devices can
-   * have their own definition, including for example elements from the anti-collision stage of the
-   * ISO14443 protocol (ATQA, ATQB, ATS, SAK, etc).
-   *
-   * These data being variable from one reader to another, they are defined here in string format
-   * which can be either a hexadecimal string or any other relevant information.
-   *
-   * @return a non empty String
+   * @return an empty String as this data is not used in mobile context where we only work with ISO cards.
    */
   fun getPowerOnData(): String
 
@@ -152,10 +200,8 @@ expect class LocalNfcReader {
    *
    * @param commandApdu: The command APDU to be transmitted.
    * @return The response APDU received from the smart card.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception> <exception cref="CardIOException">If the communication with the card has
-   * failed.</exception>
+   * @throws ReaderNotFoundException If the communication with the reader has failed.
+   * @throws CardIOException If the communication with the card has failed
    */
   fun transmitApdu(commandApdu: ByteArray): ByteArray
 }

@@ -73,57 +73,20 @@ actual class LocalNfcReader(val readerNameFilter: String = "*") {
     }
   }
 
-  /**
-   * Attempts to open the physical channel (to establish communication with the card). <exception
-   * cref="ReaderNotFoundException">If the communication with the reader has failed.</exception>
-   * <exception cref="CardIOException">If the communication with the card has failed.</exception>
-   */
   actual fun openPhysicalChannel() {
     channel = card!!.basicChannel
   }
 
-  /**
-   * Attempts to close the current physical channel. The physical channel may have been implicitly
-   * closed previously by a card withdrawal.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception>
-   */
   actual fun closePhysicalChannel() {
     card?.disconnect(false)
     card = null
     Napier.d(tag = TAG, message = "Card closed")
   }
 
-  /**
-   * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
-   * the card is inserted.
-   *
-   * In the case of a contactless reader, the reader decides what this data is. Contactless readers
-   * provide a virtual ATR (partially standardized by the PC/SC standard), but other devices can
-   * have their own definition, including for example elements from the anti-collision stage of the
-   * ISO14443 protocol (ATQA, ATQB, ATS, SAK, etc).
-   *
-   * These data being variable from one reader to another, they are defined here in string format
-   * which can be either a hexadecimal string or any other relevant information.
-   *
-   * @return a non empty String
-   */
   actual fun getPowerOnData(): String {
     return ""
   }
 
-  /**
-   * Transmits an Application Protocol Data Unit (APDU) command to the smart card and receives the
-   * response.
-   *
-   * @param commandApdu: The command APDU to be transmitted.
-   * @return The response APDU received from the smart card.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception> <exception cref="CardIOException">If the communication with the card has
-   * failed.</exception>
-   */
   @OptIn(ExperimentalStdlibApi::class)
   actual fun transmitApdu(commandApdu: ByteArray): ByteArray {
     Napier.d(tag = TAG, message = "-- APDU:")

@@ -60,6 +60,7 @@ actual class LocalNfcReader(private val activity: Activity) {
             activity,
             { tag ->
               this.tag = tag
+              isoDep = null
               cardCallback(tag)
             },
             NfcAdapter.FLAG_READER_NFC_A or
@@ -130,7 +131,6 @@ actual class LocalNfcReader(private val activity: Activity) {
   }
 
   actual fun getPowerOnData(): String {
-    // TODO
     return ""
   }
 
@@ -143,11 +143,13 @@ actual class LocalNfcReader(private val activity: Activity) {
       Napier.d(tag = TAG, message = "<---- ${res.toHexString()}")
       return res
     } catch (e: SecurityException) {
-      throw CardIOException(e.message!!)
+      throw CardIOException("Security error: ${e.message!!}")
     } catch (e: IOException) {
-      throw CardIOException(e.message!!)
+      throw CardIOException("IO error: ${e.message!!}")
     } catch (e: TagLostException) {
-      throw CardIOException(e.message!!)
+      throw CardIOException("Tag lost")
+    } catch (e: Exception) {
+      throw CardIOException("Generic error: ${e.message!!}")
     }
   }
 }

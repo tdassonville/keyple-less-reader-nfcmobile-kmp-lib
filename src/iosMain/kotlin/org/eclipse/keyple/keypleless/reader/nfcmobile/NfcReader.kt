@@ -179,7 +179,6 @@ actual class LocalNfcReader(private val getErrorMsg: (e: Exception) -> String) {
   }
 
   actual fun getPowerOnData(): String {
-    // TODO
     return ""
   }
 

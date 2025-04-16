@@ -60,7 +60,7 @@ actual class LocalNfcReader(private val activity: Activity) {
             activity,
             { tag ->
               this.tag = tag
-              isoDep = null
+              this.isoDep = null
               cardCallback(tag)
             },
             NfcAdapter.FLAG_READER_NFC_A or
@@ -108,12 +108,15 @@ actual class LocalNfcReader(private val activity: Activity) {
     }
     try {
       if (isoDep == null) {
-        Napier.d(tag = TAG, message = "grab isodep")
+        Napier.d(tag = TAG, message = "Grab isodep")
         isoDep = IsoDep.get(tag)
+        Napier.d(tag = TAG, message = "IsoDep timeout is ${isoDep?.timeout}ms")
       }
-      if (!isoDep!!.isConnected) {
-        Napier.d(tag = TAG, message = "connect")
-        isoDep!!.connect()
+      isoDep?.let {
+        if (!it.isConnected) {
+          Napier.d(tag = TAG, message = "Connect")
+          it.connect()
+        }
       }
     } catch (e: IOException) {
       throw CardIOException(e.message!!)
@@ -122,7 +125,7 @@ actual class LocalNfcReader(private val activity: Activity) {
 
   actual fun closePhysicalChannel() {
     try {
-      Napier.d(tag = TAG, message = "close")
+      Napier.d(tag = TAG, message = "Close")
       isoDep?.close()
     } catch (_: Exception) {
       // Ignore any error while closing the tag on Android...
@@ -139,8 +142,11 @@ actual class LocalNfcReader(private val activity: Activity) {
     Napier.d(tag = TAG, message = "-- APDU:")
     Napier.d(tag = TAG, message = "----> ${commandApdu.toHexString()}")
     try {
-      val res = isoDep!!.transceive(commandApdu)
-      Napier.d(tag = TAG, message = "<---- ${res.toHexString()}")
+      var res = byteArrayOf(0)
+      isoDep?.transceive(commandApdu)?.let {
+        res = it
+        Napier.d(tag = TAG, message = "<---- ${res.toHexString()}")
+      }
       return res
     } catch (e: SecurityException) {
       throw CardIOException("Security error: ${e.message!!}")

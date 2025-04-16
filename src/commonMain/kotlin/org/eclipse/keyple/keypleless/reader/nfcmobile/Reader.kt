@@ -190,7 +190,8 @@ expect class LocalNfcReader {
    * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
    * the card is inserted.
    *
-   * @return an empty String as this data is not used in mobile context where we only work with ISO cards.
+   * @return an empty String as this data is not used in mobile context where we only work with ISO
+   *   cards.
    */
   fun getPowerOnData(): String
 

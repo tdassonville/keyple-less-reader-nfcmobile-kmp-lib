@@ -26,20 +26,10 @@ import org.eclipse.keyple.keypleless.distributed.client.spi.ReaderIOException
 class MultiplatformNfcReader(private val nfcReader: LocalNfcReader) : LocalReader {
   private val mutex = Mutex()
 
-  /**
-   * Used to set the scan instructions to the user, for applicable NFC readers. Main usage is for
-   * iOS: the provided msg is displayed in the iOS system-driven NFC popup
-   */
   override fun setScanMessage(msg: String) {
     nfcReader.scanMessage = msg
   }
 
-  /**
-   * Waits (suspends) for a card to be detected
-   *
-   * @returns True if a card is detected, otherwise false
-   * @throws CancellationException
-   */
   override suspend fun waitForCardPresent(): Boolean {
     if (mutex.isLocked) {
       throw ReaderIOException("Reader is already in use")
@@ -52,13 +42,6 @@ class MultiplatformNfcReader(private val nfcReader: LocalNfcReader) : LocalReade
     }
   }
 
-  /**
-   * Waits (asynchronously) for a card to be inserted in the reader, then triggers the provided
-   * callback.
-   *
-   * @param onCard The callback that will be called when a card is detected.
-   * @throws ReaderIOException on IO error communicating with the reader (USB unplugged, etc.)
-   */
   override fun startCardDetection(onCardFound: () -> Unit) {
     try {
       if (!mutex.tryLock()) {
@@ -75,73 +58,42 @@ class MultiplatformNfcReader(private val nfcReader: LocalNfcReader) : LocalReade
     }
   }
 
-  /**
-   * Attempts to open the physical channel (to establish communication with the card).
-   *
-   * @throws ReaderIOException on IO error communicating with the reader (USB unplugged, etc.)
-   * @throws CardIOException on IO error with the card (card exited the NFC field, etc.)
-   */
-  override suspend fun openPhysicalChannel() {
-    if (mutex.isLocked) {
+  override fun openPhysicalChannel() {
+    if (!mutex.tryLock()) {
       throw ReaderIOException("Reader is already in use")
     }
 
     try {
-      mutex.lock()
       nfcReader.openPhysicalChannel()
     } finally {
       mutex.unlock()
     }
   }
 
-  /**
-   * Attempts to close the current physical channel. The physical channel may have been implicitly
-   * closed previously by a card withdrawal.
-   *
-   * @throws ReaderNotFoundException If the communication with the reader has failed.
-   */
   override fun closePhysicalChannel() {
     nfcReader.closePhysicalChannel()
   }
 
-  /**
-   * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
-   * the card is inserted. This is not used in our main target (ISO cards)
-   *
-   * @return an empty String
-   */
   override fun getPowerOnData(): String {
     return nfcReader.getPowerOnData()
   }
 
-  /** Returns the name of this reader (mostly indicative) */
-  override fun name(): String {
+  override fun getName(): String {
     return nfcReader.name
   }
 
-  /**
-   * Transmits an Application Protocol Data Unit (APDU) command to the smart card and receives the
-   * response.
-   *
-   * @param commandApdu: The command APDU to be transmitted.
-   * @return The response APDU received from the smart card.
-   * @throws ReaderNotFoundException If the communication with the reader has failed.
-   * @throws CardIOException If the communication with the card has failed
-   */
-  override suspend fun transmitApdu(commandApdu: ByteArray): ByteArray {
-    if (mutex.isLocked) {
+  override fun transmitApdu(commandApdu: ByteArray): ByteArray {
+    if (!mutex.tryLock()) {
       throw ReaderIOException("Reader is already in use")
     }
 
     try {
-      mutex.lock()
       return nfcReader.transmitApdu(commandApdu)
     } finally {
       mutex.unlock()
     }
   }
 
-  /** Stop scanning for NFC cards. Release the reader resources. */
   override fun release() {
     nfcReader.releaseReader()
     if (mutex.isLocked) {
@@ -173,16 +125,14 @@ expect class LocalNfcReader {
   /**
    * Attempts to open the physical channel (to establish communication with the card).
    *
-   * @throws ReaderNotFoundException If the communication with the reader has failed.
-   * @throws CardIOException If the communication with the card has failed
+   * @throws ReaderIOException If an I/O error occurs while communicating with the reader.
+   * @throws CardIOException If an I/O error occurs while communicating with the card.
    */
   fun openPhysicalChannel()
 
   /**
    * Attempts to close the current physical channel. The physical channel may have been implicitly
    * closed previously by a card withdrawal.
-   *
-   * @throws ReaderNotFoundException If the communication with the reader has failed.
    */
   fun closePhysicalChannel()
 
@@ -201,8 +151,8 @@ expect class LocalNfcReader {
    *
    * @param commandApdu: The command APDU to be transmitted.
    * @return The response APDU received from the smart card.
-   * @throws ReaderNotFoundException If the communication with the reader has failed.
-   * @throws CardIOException If the communication with the card has failed
+   * @throws ReaderIOException If an I/O error occurs while communicating with the reader.
+   * @throws CardIOException If an I/O error occurs while communicating with the card.
    */
   fun transmitApdu(commandApdu: ByteArray): ByteArray
 }

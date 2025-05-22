@@ -9,7 +9,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  ************************************************************************************** */
-package org.eclipse.keyple.keypleless.reader.nfcmobile
+package org.eclipse.keyple.interop.localreader.nfcmobile
 
 import android.app.Activity
 import android.app.PendingIntent
@@ -25,10 +25,11 @@ import io.github.aakira.napier.Napier
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
-import org.eclipse.keyple.keypleless.distributed.client.spi.CardIOException
+import org.eclipse.keyple.interop.jsonapi.client.spi.CardIOException
 
 private const val TAG = "NFCReader"
 
+@Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
 actual class LocalNfcReader(private val activity: Activity) {
   private var tag: Tag? = null
   private var isoDep: IsoDep? = null
@@ -36,7 +37,7 @@ actual class LocalNfcReader(private val activity: Activity) {
   actual var scanMessage: String = ""
   actual var name = "AndroidNFC"
 
-  actual suspend fun startCardDetection(onCardFound: () -> Unit) {
+  actual fun startCardDetection(onCardFound: () -> Unit) {
     Napier.d(tag = TAG, message = "startCardDetection")
     enableForeground { onCardFound() }
   }
@@ -59,6 +60,7 @@ actual class LocalNfcReader(private val activity: Activity) {
             activity,
             { tag ->
               this.tag = tag
+              this.isoDep = null
               cardCallback(tag)
             },
             NfcAdapter.FLAG_READER_NFC_A or
@@ -69,11 +71,6 @@ actual class LocalNfcReader(private val activity: Activity) {
     NfcAdapter.getDefaultAdapter(activity.applicationContext)
         .enableForegroundDispatch(activity, pendingIntent, null, null)
   }
-
-  //    private fun cardPresent(newTag: Tag) {
-  //        Napier.d(tag = TAG, message = "Card detected, notify...")
-  //        channel.trySend(newTag)
-  //    }
 
   actual fun releaseReader() {
     Napier.d(tag = TAG, message = "stopCardDetection")
@@ -104,11 +101,6 @@ actual class LocalNfcReader(private val activity: Activity) {
     }
   }
 
-  /**
-   * Attempts to open the physical channel (to establish communication with the card). <exception
-   * cref="ReaderNotFoundException">If the communication with the reader has failed.</exception>
-   * <exception cref="CardIOException">If the communication with the card has failed.</exception>
-   */
   actual fun openPhysicalChannel() {
     Napier.d(tag = TAG, message = "openPhysicalChannel")
     if (!tag!!.techList.contains(IsoDep::class.qualifiedName)) {
@@ -116,28 +108,24 @@ actual class LocalNfcReader(private val activity: Activity) {
     }
     try {
       if (isoDep == null) {
-        Napier.d(tag = TAG, message = "grab isodep")
+        Napier.d(tag = TAG, message = "Grab isodep")
         isoDep = IsoDep.get(tag)
+        Napier.d(tag = TAG, message = "IsoDep timeout is ${isoDep?.timeout}ms")
       }
-      if (!isoDep!!.isConnected) {
-        Napier.d(tag = TAG, message = "connect")
-        isoDep!!.connect()
+      isoDep?.let {
+        if (!it.isConnected) {
+          Napier.d(tag = TAG, message = "Connect")
+          it.connect()
+        }
       }
     } catch (e: IOException) {
       throw CardIOException(e.message!!)
     }
   }
 
-  /**
-   * Attempts to close the current physical channel. The physical channel may have been implicitly
-   * closed previously by a card withdrawal.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception>
-   */
   actual fun closePhysicalChannel() {
     try {
-      Napier.d(tag = TAG, message = "close")
+      Napier.d(tag = TAG, message = "Close")
       isoDep?.close()
     } catch (_: Exception) {
       // Ignore any error while closing the tag on Android...
@@ -145,50 +133,29 @@ actual class LocalNfcReader(private val activity: Activity) {
     isoDep = null
   }
 
-  /**
-   * Gets the power-on data. The power-on data is defined as the data retrieved by the reader when
-   * the card is inserted.
-   *
-   * In the case of a contactless reader, the reader decides what this data is. Contactless readers
-   * provide a virtual ATR (partially standardized by the PC/SC standard), but other devices can
-   * have their own definition, including for example elements from the anti-collision stage of the
-   * ISO14443 protocol (ATQA, ATQB, ATS, SAK, etc).
-   *
-   * These data being variable from one reader to another, they are defined here in string format
-   * which can be either a hexadecimal string or any other relevant information.
-   *
-   * @return a non empty String
-   */
   actual fun getPowerOnData(): String {
-    // TODO
-    return ""
+    return "Unavailable"
   }
 
-  /**
-   * Transmits an Application Protocol Data Unit (APDU) command to the smart card and receives the
-   * response.
-   *
-   * @param commandApdu: The command APDU to be transmitted.
-   * @return The response APDU received from the smart card.
-   *
-   * <exception cref="ReaderNotFoundException">If the communication with the reader has
-   * failed.</exception> <exception cref="CardIOException">If the communication with the card has
-   * failed.</exception>
-   */
   @OptIn(ExperimentalStdlibApi::class)
   actual fun transmitApdu(commandApdu: ByteArray): ByteArray {
     Napier.d(tag = TAG, message = "-- APDU:")
     Napier.d(tag = TAG, message = "----> ${commandApdu.toHexString()}")
     try {
-      val res = isoDep!!.transceive(commandApdu)
-      Napier.d(tag = TAG, message = "<---- ${res.toHexString()}")
+      var res = byteArrayOf(0)
+      isoDep?.transceive(commandApdu)?.let {
+        res = it
+        Napier.d(tag = TAG, message = "<---- ${res.toHexString()}")
+      }
       return res
     } catch (e: SecurityException) {
-      throw CardIOException(e.message!!)
+      throw CardIOException("Security error: ${e.message!!}")
     } catch (e: IOException) {
-      throw CardIOException(e.message!!)
+      throw CardIOException("IO error: ${e.message!!}")
     } catch (e: TagLostException) {
-      throw CardIOException(e.message!!)
+      throw CardIOException("Tag lost")
+    } catch (e: Exception) {
+      throw CardIOException("Generic error: ${e.message!!}")
     }
   }
 }

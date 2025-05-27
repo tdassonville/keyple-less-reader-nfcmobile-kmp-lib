@@ -4,8 +4,11 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.dokka)
     id("com.diffplug.spotless")
+    id("org.sonarqube") version "3.1"
     id("maven-publish")
 }
+
+apply(plugin = "org.eclipse.keyple")
 
 kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
@@ -64,14 +67,6 @@ android {
     }
 }
 
-publishing {
-    repositories {
-        mavenLocal {
-            //...
-        }
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 //  TASKS CONFIGURATION
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,6 +89,20 @@ tasks {
             target("**/*.kt")
             ktfmt()
             licenseHeaderFile("${project.rootDir}/LICENSE_HEADER")
+        }
+    }
+
+    sonarqube {
+        properties {
+            property("sonar.projectKey", "eclipse_" + project.name)
+            property("sonar.organization", "eclipse")
+            property("sonar.host.url", "https://sonarcloud.io")
+            property("sonar.login", System.getenv("SONAR_LOGIN"))
+            System.getenv("BRANCH_NAME")?.let {
+                if (it != "main") {
+                    property("sonar.branch.name", it)
+                }
+            }
         }
     }
 }

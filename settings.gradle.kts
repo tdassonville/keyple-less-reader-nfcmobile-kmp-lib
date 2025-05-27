@@ -27,6 +27,7 @@ dependencyResolutionManagement {
                 includeGroupAndSubgroups("com.google")
             }
         }
+        maven(url = "https://oss.sonatype.org/content/repositories/snapshots")
     }
 }
 
@@ -38,5 +39,6 @@ buildscript {
 
     dependencies {
         classpath("com.diffplug.spotless:spotless-plugin-gradle:6.25.0")
+        classpath("org.eclipse.keyple:keyple-gradle:0.2.+") { isChanging = true }
     }
 }
